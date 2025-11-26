@@ -28,13 +28,18 @@ export default function Home() {
   const [quizQuestions, setQuizQuestions] = useState<Question[]>([]);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [vocabRefreshTrigger, setVocabRefreshTrigger] = useState(0);
+  const [apiKey, setApiKey] = useState('');
 
-  const handleGenerate = async (topic: string, difficulty: string, length: string) => {
+  const handleGenerate = async (topic: string, difficulty: string, length: string, key: string) => {
     setIsLoading(true);
+    setApiKey(key);
     try {
       const response = await fetch('/api/generate/passage', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'x-gemini-api-key': key
+        },
         body: JSON.stringify({ topic, difficulty, length }),
       });
       const data = await response.json();
@@ -54,7 +59,10 @@ export default function Home() {
     try {
       const response = await fetch('/api/generate/quiz', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'x-gemini-api-key': apiKey
+        },
         body: JSON.stringify({ topic: passage.title, content: passage.content }),
       });
       const data = await response.json();
@@ -77,7 +85,10 @@ export default function Home() {
     try {
       const res = await fetch('/api/vocabulary', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'x-gemini-api-key': apiKey
+        },
         body: JSON.stringify({ term: word }),
       });
 

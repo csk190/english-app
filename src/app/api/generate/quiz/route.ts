@@ -1,33 +1,51 @@
 import { NextResponse } from 'next/server';
 
+import { GoogleGenerativeAI } from '@google/generative-ai';
+
 export async function POST(request: Request) {
-    const { topic, content } = await request.json();
+    try {
+        const { topic, content } = await request.json();
 
-    // TODO: Call LLM to generate questions based on content
-    // Mock response
-    const mockQuiz = [
-        {
-            id: 1,
-            question: `What is the main topic of the passage?`,
-            options: [`The history of ${topic}`, `How to cook ${topic}`, `The future of ${topic}`, `Why ${topic} is bad`],
-            correctAnswer: 0
-        },
-        {
-            id: 2,
-            question: "What did the author mention as a key benefit?",
-            options: ["Saving money", "Improving health", "Understanding the universe", "Making friends"],
-            correctAnswer: 2
-        },
-        {
-            id: 3,
-            question: "Which word best describes the tone of the passage?",
-            options: ["Angry", "Informative", "Sad", "Funny"],
-            correctAnswer: 1
+        const apiKey = request.headers.get('x-gemini-api-key') || process.env.GEMINI_API_KEY;
+        if (!apiKey) {
+            return NextResponse.json(
+                { error: 'API Key is missing' },
+                { status: 401 }
+            );
         }
-    ];
 
-    // Simulate delay
-    await new Promise(resolve => setTimeout(resolve, 1000));
+        const genAI = new GoogleGenerativeAI(apiKey);
+        const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
 
-    return NextResponse.json(mockQuiz);
+        const prompt = `Generate 3 multiple-choice reading comprehension questions based on the following passage about "${topic}".
+        
+        Passage:
+        ${content}
+
+        Return the response in the following JSON format:
+        [
+            {
+                "id": 1,
+                "question": "Question text",
+                "options": ["Option A", "Option B", "Option C", "Option D"],
+                "correctAnswer": 0 // Index of the correct option (0-3)
+            }
+        ]
+        Do not include markdown formatting. Just the raw JSON array.`;
+
+        const result = await model.generateContent(prompt);
+        const response = await result.response;
+        const text = response.text();
+        const cleanText = text.replace(/```json/g, '').replace(/```/g, '').trim();
+
+        const quiz = JSON.parse(cleanText);
+        return NextResponse.json(quiz);
+
+    } catch (error) {
+        console.error('Error generating quiz:', error);
+        return NextResponse.json(
+            { error: 'Failed to generate quiz', details: String(error) },
+            { status: 500 }
+        );
+    }
 }

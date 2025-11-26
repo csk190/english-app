@@ -3,7 +3,7 @@
 import { useState } from 'react';
 
 interface TopicInputProps {
-  onGenerate: (topic: string, difficulty: string, length: string) => void;
+  onGenerate: (topic: string, difficulty: string, length: string, apiKey: string) => void;
   isLoading: boolean;
 }
 
@@ -11,11 +11,12 @@ export default function TopicInput({ onGenerate, isLoading }: TopicInputProps) {
   const [topic, setTopic] = useState('');
   const [difficulty, setDifficulty] = useState('Intermediate');
   const [length, setLength] = useState('Medium');
+  const [apiKey, setApiKey] = useState('');
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (topic.trim()) {
-      onGenerate(topic, difficulty, length);
+      onGenerate(topic, difficulty, length, apiKey);
     }
   };
 
@@ -31,6 +32,21 @@ export default function TopicInput({ onGenerate, isLoading }: TopicInputProps) {
         What do you want to read about?
       </h2>
       <form onSubmit={handleSubmit} className="space-y-6">
+        <div>
+          <label className="block text-sm font-medium mb-2 text-white/70">Gemini API Key (Optional)</label>
+          <input
+            type="password"
+            value={apiKey}
+            onChange={(e) => setApiKey(e.target.value)}
+            placeholder="Enter your Gemini API Key (or leave empty to use default)"
+            className="input w-full text-lg placeholder:text-white/30"
+            disabled={isLoading}
+          />
+          <p className="text-xs text-white/50 mt-1">
+            Leave empty to use the server-configured key, or provide your own from <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer" className="underline hover:text-white">Google AI Studio</a>
+          </p>
+        </div>
+
         <div className="flex gap-3">
           <input
             type="text"

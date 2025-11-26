@@ -1,21 +1,58 @@
 import { NextResponse } from 'next/server';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 
 export async function POST(request: Request) {
-    const { topic, difficulty, length } = await request.json();
+    try {
+        const { topic, difficulty, length } = await request.json();
 
-    // TODO: Integrate real LLM here
-    // Mock response for now
-    const mockPassage = {
-        title: `The Wonders of ${topic}`,
-        content: `This is a generated passage about ${topic}. It is designed for ${difficulty} level learners and is of ${length} length.
-    
-    Space exploration has always fascinated humanity. From the early days of gazing at the stars to the modern era of sending rovers to Mars, our curiosity knows no bounds. The universe is vast and full of mysteries waiting to be solved.
-    
-    Scientists work tirelessly to understand the cosmos. They build giant telescopes and launch powerful rockets. Every discovery brings us closer to understanding our place in the universe. Who knows what we will find next? Maybe life on other planets or new sources of energy.`
-    };
+        const apiKey = request.headers.get('x-gemini-api-key') || process.env.GEMINI_API_KEY;
+        console.log('API Key configured:', !!apiKey);
+        if (!apiKey) {
+            return NextResponse.json(
+                { error: 'API Key is missing. Please provide it in the input field.' },
+                { status: 401 }
+            );
+        }
 
-    // Simulate delay
-    await new Promise(resolve => setTimeout(resolve, 1500));
+        const genAI = new GoogleGenerativeAI(apiKey);
+        const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
 
-    return NextResponse.json(mockPassage);
+        const prompt = `Generate a reading passage about "${topic}". 
+        Difficulty level: ${difficulty}. 
+        Length: ${length}.
+        
+        Return the response in the following JSON format:
+        {
+            "title": "A suitable title for the passage",
+            "content": "The content of the passage"
+        }
+        Do not include markdown formatting like \`\`\`json or \`\`\`. Just the raw JSON object.`;
+
+        const result = await model.generateContent(prompt);
+        const response = await result.response;
+        const text = response.text();
+
+        // Clean up the text if it contains markdown code blocks
+        const cleanText = text.replace(/```json/g, '').replace(/```/g, '').trim();
+
+        let parsedResponse;
+        try {
+            parsedResponse = JSON.parse(cleanText);
+        } catch (e) {
+            console.error('Failed to parse JSON:', text);
+            // Fallback if JSON parsing fails, though we asked for JSON
+            parsedResponse = {
+                title: `Passage about ${topic}`,
+                content: text
+            };
+        }
+
+        return NextResponse.json(parsedResponse);
+    } catch (error) {
+        console.error('Error generating passage:', error);
+        return new NextResponse(
+            JSON.stringify({ error: 'Failed to generate passage', details: String(error) }),
+            { status: 500, headers: { 'Content-Type': 'application/json' } }
+        );
+    }
 }
