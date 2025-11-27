@@ -1,24 +1,22 @@
 import { NextResponse } from 'next/server';
 import { GoogleGenerativeAI } from '@google/generative-ai';
-
-// Mock DB in memory
-let words: any[] = [];
+import { prisma } from '@/lib/prisma';
 
 export async function POST(request: Request) {
     try {
         const { term } = await request.json();
 
         // Check if word already exists
-        const existingWord = words.find(w => w.term === term.toLowerCase());
+        const existingWord = await prisma.word.findUnique({
+            where: { term: term.toLowerCase() },
+        });
+
         if (existingWord) {
             return NextResponse.json(existingWord);
         }
 
         const apiKey = request.headers.get('x-gemini-api-key') || process.env.GEMINI_API_KEY;
         if (!apiKey) {
-            // Fallback to mock if no key, or error? Let's error for consistency with other routes, 
-            // but maybe soft fail if it's just a sidebar lookup? 
-            // For now, let's require the key for the "real" experience.
             return NextResponse.json(
                 { error: 'API Key is missing' },
                 { status: 401 }
@@ -41,19 +39,24 @@ export async function POST(request: Request) {
         const response = await result.response;
         const text = response.text();
         const cleanText = text.replace(/```json/g, '').replace(/```/g, '').trim();
-        const data = JSON.parse(cleanText);
 
-        const newWord = {
-            id: Date.now(),
-            term: term.toLowerCase(),
-            definition: data.definition,
-            partOfSpeech: data.partOfSpeech,
-            example: data.example,
-            masteryLevel: 0,
-            createdAt: new Date(),
-        };
+        let data;
+        try {
+            data = JSON.parse(cleanText);
+        } catch (e) {
+            console.error('Failed to parse JSON:', text);
+            return NextResponse.json({ error: 'Failed to parse definition' }, { status: 500 });
+        }
 
-        words.unshift(newWord); // Add to beginning
+        const newWord = await prisma.word.create({
+            data: {
+                term: term.toLowerCase(),
+                definition: data.definition,
+                partOfSpeech: data.partOfSpeech,
+                example: data.example,
+                masteryLevel: 0,
+            },
+        });
 
         return NextResponse.json(newWord);
     } catch (error) {
@@ -63,5 +66,13 @@ export async function POST(request: Request) {
 }
 
 export async function GET() {
-    return NextResponse.json(words);
+    try {
+        const words = await prisma.word.findMany({
+            orderBy: { createdAt: 'desc' },
+        });
+        return NextResponse.json(words);
+    } catch (error) {
+        console.error('Error fetching words:', error);
+        return NextResponse.json({ error: 'Failed to fetch words' }, { status: 500 });
+    }
 }

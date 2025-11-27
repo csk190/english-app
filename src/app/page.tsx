@@ -8,6 +8,8 @@ import AudioPlayer from '@/components/AudioPlayer';
 import VocabularySidebar from '@/components/VocabularySidebar';
 import QuizView from '@/components/QuizView';
 import WritingView from '@/components/WritingView';
+import FastReadingView from '@/components/FastReadingView';
+import ChatView from '@/components/ChatView';
 
 interface PassageData {
   title: string;
@@ -22,7 +24,7 @@ interface Question {
 }
 
 export default function Home() {
-  const [step, setStep] = useState<'input' | 'reading' | 'quiz' | 'writing'>('input');
+  const [step, setStep] = useState<'input' | 'reading' | 'quiz' | 'fast-reading' | 'chat' | 'writing'>('input');
   const [isLoading, setIsLoading] = useState(false);
   const [passage, setPassage] = useState<PassageData | null>(null);
   const [quizQuestions, setQuizQuestions] = useState<Question[]>([]);
@@ -82,6 +84,14 @@ export default function Home() {
 
   const handleQuizComplete = (score: number) => {
     console.log('Quiz completed with score:', score);
+    setStep('fast-reading');
+  };
+
+  const handleFastReadingComplete = () => {
+    setStep('chat');
+  };
+
+  const handleChatComplete = () => {
     setStep('writing');
   };
 
@@ -146,7 +156,7 @@ export default function Home() {
               </button>
             </div>
 
-            <AudioPlayer text={passage.content} />
+            <AudioPlayer text={passage.content} apiKey={apiKey} />
 
             <ReadingView
               title={passage.title}
@@ -168,6 +178,14 @@ export default function Home() {
 
         {step === 'quiz' && (
           <QuizView questions={quizQuestions} onComplete={handleQuizComplete} />
+        )}
+
+        {step === 'fast-reading' && passage && (
+          <FastReadingView content={passage.content} onComplete={handleFastReadingComplete} />
+        )}
+
+        {step === 'chat' && passage && (
+          <ChatView topic={passage.title} apiKey={apiKey} onComplete={handleChatComplete} />
         )}
 
         {step === 'writing' && (

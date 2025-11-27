@@ -1,103 +1,99 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { Play, Pause, RotateCcw, Settings } from 'lucide-react';
+import { Play, Pause, RotateCcw, Loader2 } from 'lucide-react';
+import { GOOGLE_TTS_VOICES, synthesizeSpeech } from '@/lib/GoogleTTS';
 
 interface AudioPlayerProps {
     text: string;
+    apiKey: string;
 }
 
-export default function AudioPlayer({ text }: AudioPlayerProps) {
+export default function AudioPlayer({ text, apiKey }: AudioPlayerProps) {
     const [isPlaying, setIsPlaying] = useState(false);
-    const [isPaused, setIsPaused] = useState(false);
-    const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
-    const [selectedVoice, setSelectedVoice] = useState<SpeechSynthesisVoice | null>(null);
+    const [isLoading, setIsLoading] = useState(false);
+    const [audioUrl, setAudioUrl] = useState<string | null>(null);
+    const [selectedVoice, setSelectedVoice] = useState(GOOGLE_TTS_VOICES[0]);
     const [rate, setRate] = useState(1);
-    const synth = useRef<SpeechSynthesis | null>(null);
-    const utterance = useRef<SpeechSynthesisUtterance | null>(null);
+    const audioRef = useRef<HTMLAudioElement | null>(null);
 
     useEffect(() => {
-        if (typeof window !== 'undefined') {
-            synth.current = window.speechSynthesis;
+        // Reset audio when text changes
+        if (audioRef.current) {
+            audioRef.current.pause();
+            audioRef.current = null;
+        }
+        setAudioUrl(null);
+        setIsPlaying(false);
+    }, [text]);
 
-            const loadVoices = () => {
-                const availableVoices = synth.current!.getVoices();
-                // Filter for English voices
-                const englishVoices = availableVoices.filter(v => v.lang.startsWith('en'));
-                setVoices(englishVoices);
-                if (englishVoices.length > 0) {
-                    setSelectedVoice(englishVoices[0]);
-                }
+    const handlePlay = async () => {
+        if (isPlaying && audioRef.current) {
+            audioRef.current.pause();
+            setIsPlaying(false);
+            return;
+        }
+
+        if (audioUrl && audioRef.current) {
+            audioRef.current.play();
+            setIsPlaying(true);
+            return;
+        }
+
+        setIsLoading(true);
+        try {
+            const url = await synthesizeSpeech({
+                text,
+                languageCode: selectedVoice.languageCode,
+                name: selectedVoice.name,
+                ssmlGender: selectedVoice.gender as 'MALE' | 'FEMALE',
+                speakingRate: rate,
+            }, apiKey);
+
+            setAudioUrl(url);
+            const audio = new Audio(url);
+            audioRef.current = audio;
+
+            audio.onended = () => {
+                setIsPlaying(false);
             };
 
-            loadVoices();
-            if (synth.current.onvoiceschanged !== undefined) {
-                synth.current.onvoiceschanged = loadVoices;
-            }
-        }
-
-        return () => {
-            if (synth.current) {
-                synth.current.cancel();
-            }
-        };
-    }, []);
-
-    const handlePlay = () => {
-        if (!synth.current) return;
-
-        if (isPaused) {
-            synth.current.resume();
+            audio.play();
             setIsPlaying(true);
-            setIsPaused(false);
-            return;
+        } catch (error) {
+            console.error('Failed to play audio:', error);
+            alert('Failed to generate audio. Please check your API key.');
+        } finally {
+            setIsLoading(false);
         }
-
-        if (isPlaying) {
-            synth.current.pause();
-            setIsPlaying(false);
-            setIsPaused(true);
-            return;
-        }
-
-        utterance.current = new SpeechSynthesisUtterance(text);
-        if (selectedVoice) {
-            utterance.current.voice = selectedVoice;
-        }
-        utterance.current.rate = rate;
-
-        utterance.current.onend = () => {
-            setIsPlaying(false);
-            setIsPaused(false);
-        };
-
-        synth.current.speak(utterance.current);
-        setIsPlaying(true);
     };
 
     const handleStop = () => {
-        if (!synth.current) return;
-        synth.current.cancel();
+        if (audioRef.current) {
+            audioRef.current.pause();
+            audioRef.current.currentTime = 0;
+        }
         setIsPlaying(false);
-        setIsPaused(false);
     };
 
     const handleVoiceChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-        const voice = voices.find(v => v.name === e.target.value);
+        const voice = GOOGLE_TTS_VOICES.find(v => v.name === e.target.value);
         if (voice) {
             setSelectedVoice(voice);
-            // If playing, restart with new voice
-            if (isPlaying || isPaused) {
-                handleStop();
-                setTimeout(handlePlay, 100);
-            }
+            // Reset audio to force regeneration with new voice
+            handleStop();
+            setAudioUrl(null);
+            audioRef.current = null;
         }
     };
 
     const handleRateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const newRate = parseFloat(e.target.value);
         setRate(newRate);
-        // Note: Changing rate dynamically usually requires restarting the utterance in Web Speech API
+        // Reset audio to force regeneration with new rate
+        handleStop();
+        setAudioUrl(null);
+        audioRef.current = null;
     };
 
     return (
@@ -106,10 +102,17 @@ export default function AudioPlayer({ text }: AudioPlayerProps) {
                 <div className="flex items-center gap-4">
                     <button
                         onClick={handlePlay}
-                        className="btn btn-primary rounded-full w-14 h-14 p-0 flex items-center justify-center shadow-[0_0_20px_rgba(124,58,237,0.4)] hover:shadow-[0_0_30px_rgba(124,58,237,0.6)] hover:scale-105 transition-all"
+                        disabled={isLoading}
+                        className="btn btn-primary rounded-full w-14 h-14 p-0 flex items-center justify-center shadow-[0_0_20px_rgba(124,58,237,0.4)] hover:shadow-[0_0_30px_rgba(124,58,237,0.6)] hover:scale-105 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                         title={isPlaying ? "Pause" : "Play"}
                     >
-                        {isPlaying ? <Pause size={24} fill="currentColor" /> : <Play size={24} fill="currentColor" className="ml-1" />}
+                        {isLoading ? (
+                            <Loader2 size={24} className="animate-spin" />
+                        ) : isPlaying ? (
+                            <Pause size={24} fill="currentColor" />
+                        ) : (
+                            <Play size={24} fill="currentColor" className="ml-1" />
+                        )}
                     </button>
                     <button
                         onClick={handleStop}
@@ -129,7 +132,7 @@ export default function AudioPlayer({ text }: AudioPlayerProps) {
                                 type="range"
                                 min="0.5"
                                 max="2"
-                                step="0.1"
+                                step="0.25"
                                 value={rate}
                                 onChange={handleRateChange}
                                 className="w-24 h-1 bg-white/20 rounded-lg appearance-none cursor-pointer accent-primary hover:bg-white/30 transition-colors"
@@ -143,11 +146,11 @@ export default function AudioPlayer({ text }: AudioPlayerProps) {
                             <select
                                 className="text-sm py-1 pl-2 pr-8 rounded bg-white/10 border border-white/10 text-white/90 focus:outline-none focus:ring-1 focus:ring-primary appearance-none cursor-pointer hover:bg-white/20 transition-colors"
                                 onChange={handleVoiceChange}
-                                value={selectedVoice?.name || ''}
+                                value={selectedVoice.name}
                             >
-                                {voices.map(voice => (
+                                {GOOGLE_TTS_VOICES.map(voice => (
                                     <option key={voice.name} value={voice.name} className="bg-slate-900">
-                                        {voice.name.replace(/Microsoft |Google |English /g, '').substring(0, 15)}...
+                                        {voice.label}
                                     </option>
                                 ))}
                             </select>
