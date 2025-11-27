@@ -1,4 +1,4 @@
-// Using built-in fetch
+const fs = require('fs');
 
 async function testApi() {
     try {
@@ -16,14 +16,14 @@ async function testApi() {
 
         if (!response.ok) {
             const errorBody = await response.text();
-            console.error('Full Error Body:', errorBody);
-            throw new Error(`HTTP error! status: ${response.status}`);
+            console.log('Error occurred, writing to error.log');
+            fs.writeFileSync('error.log', errorBody);
+        } else {
+            console.log('Success');
         }
-
-        const data = await response.json();
-        console.log('Response:', JSON.stringify(data, null, 2));
     } catch (error) {
         console.error('Error:', error);
+        fs.writeFileSync('error.log', String(error));
     }
 }
 
