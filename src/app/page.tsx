@@ -43,8 +43,12 @@ export default function Home() {
         body: JSON.stringify({ topic, difficulty, length }),
       });
       const data = await response.json();
-      setPassage(data);
-      setStep('reading');
+      if (data && data.content) {
+        setPassage(data);
+        setStep('reading');
+      } else {
+        throw new Error('Invalid passage data received');
+      }
     } catch (error) {
       console.error('Failed to generate passage:', error);
       alert('Failed to generate passage. Please try again.');

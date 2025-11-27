@@ -10,7 +10,15 @@ interface ReadingViewProps {
 
 export default function ReadingView({ title, content, onWordClick }: ReadingViewProps) {
     // Split content into paragraphs, then words
-    const paragraphs = content.split('\n\n');
+    const paragraphs = (content || '').split('\n\n');
+
+    if (!content) {
+        return (
+            <div className="card max-w-3xl mx-auto p-8 text-center backdrop-blur-xl bg-white/5 border-white/10">
+                <p className="text-white/60">No content available to display.</p>
+            </div>
+        );
+    }
 
     return (
         <div className="card max-w-3xl mx-auto animate-in fade-in zoom-in duration-500 backdrop-blur-xl bg-white/5 border-white/10">
